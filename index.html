@@ -210,6 +210,39 @@ void main() {
       gl.generateMipmap(gl.TEXTURE_2D);
     });
 
+    // gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    // const positions = [
+    //   -1.0, -1.0, -1.0,
+    //   -1.0, -1.0, 1.0,
+    //   -1.0, 1.0, 1.0,
+    //   -1.0, 1.0, -1.0,
+    // ];
+    // gl.bufferData(gl.ARRAY_BUFFER,
+    //   new Float32Array(positions),
+    //   gl.STATIC_DRAW);
+
+
+    // gl.enableVertexAttribArray(
+    //   vert_pos_attr);
+    // gl.vertexAttribPointer(
+    //   vert_pos_attr,
+    //   3,
+    //   gl.FLOAT, false, 0, 0);
+    // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
+    //   new Uint16Array([1177, 1178, 1179, 1180,]),
+    //   gl.STATIC_DRAW);
+
+    // const faceColor =
+    //   [1.0, 1.0, 0.0, 1.0,
+    //     1.0, 1.0, 0.0, 1.0,
+    //     1.0, 1.0, 0.0, 1.0,
+    //     1.0, 1.0, 0.0, 1.0]
+
+    // const colorBuffer = gl.createBuffer();
+    // gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    // gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(faceColor), gl.STATIC_DRAW);
+
     //
     // set up transformation matrices
     //
@@ -269,8 +302,9 @@ void main() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     modelview = glMatrix.mat4.create();
-    glMatrix.mat4.translate(modelview, modelview, [0.0, 0.0, -2.0]);
+    glMatrix.mat4.translate(modelview, modelview, [0.0, 0.2, -2.5]);
     glMatrix.mat4.rotateY(modelview, modelview, time * 0.001);
+    glMatrix.mat4.rotateX(modelview, modelview, 0.15);
 
     normalmatrix = glMatrix.mat3.create();
     glMatrix.mat3.normalFromMat4(normalmatrix, modelview);
@@ -294,6 +328,16 @@ void main() {
       teapot.faces.length,
       gl.UNSIGNED_SHORT,
       0);
+
+    // glMatrix.mat4.rotateY(modelview, modelview, -time * 0.003);
+    // glMatrix.mat4.translate(modelview, modelview, [0.5, 0.0, -0.3]);
+    // glMatrix.mat4.scale(modelview, modelview, [0.3, 0.3, 0.3]);
+    // // glMatrix.mat4.scale(modelview, [0.5, 0.5, 0.5]);
+    // gl.uniformMatrix4fv(modelview_uniform, false, modelview);
+    // gl.drawElements(gl.TRIANGLES,
+    //   teapot.faces.length,
+    //   gl.UNSIGNED_SHORT,
+    //   0);
 
     requestAnimationFrame(draw);
   }
