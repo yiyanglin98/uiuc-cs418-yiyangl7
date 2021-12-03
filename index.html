@@ -2,7 +2,7 @@
 <html>
 
 <script src="unit teapot.js"></script>
-
+<script src="hand.js"></script>
 <script src="gl-matrix-min.js"></script>
 
 <script>
@@ -11,10 +11,12 @@
   var modelview_uniform;
   var normal_uniform;
   var projection_uniform;
-  var texture, texture2;
+  var texture, texture2, texture3;
   var sampler_uniform;
   var sampler2_uniform;
+  var sampler3_uniform;
   var teapot_vao;
+  var hand_vao;
   var vert_pos_attr;
   var vert_normal_attr;
 
@@ -38,8 +40,14 @@ out vec3 vLight;
 out vec3 vView;
 out vec3 vPosition;
 
+out vec3 pt;
+out vec3 ps;
+
 void main() {
+
   vNormal = normalize(uNormalMatrix*aVertexNormal);
+  pt = cross(vec3(0.0,1.0,0.0), vNormal);
+  ps = cross(vNormal, pt);
   vLight = vec3(1.0,1.0,1.0);
   vec4 p = uModelViewMatrix*vec4(aVertexPosition, 1.0);
   vView = normalize(-p.xyz);
@@ -61,19 +69,24 @@ precision mediump float;
 in vec3 vNormal, vLight, vView;
 in vec2 vTexCoord;
 in vec3 vPosition;
+in vec3 pt;
+in vec3 ps;
+uniform int isHand;
 uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
+uniform sampler2D uSampler3;
 out vec4 outColor;
     
 void main() {
-  vec3 nvNormal = normalize(vNormal);
+  // vec3 nvNormal = normalize(vNormal) - normalize(cross(vNormal, pt)) + normalize(cross(vNormal, ps));
+  
   vec3 nvLight = vLight;
   vec3 nvView = normalize(vView);
   vec3 nvPosition = normalize(vPosition);
-  float diffuse = max(dot(nvNormal, nvLight), 0.5);
-  vec3 r = normalize(reflect(-nvLight, nvNormal));
-  float vr = pow(max(dot(nvView, r), 0.0), 20.0);
-  
+  vec3 nPs = normalize(ps);
+  vec3 nPt = normalize(pt);
+
+  // Colors and textures
   float s = atan(nvPosition.z, nvPosition.x) / (-2.0*3.14159);
   float t = nvPosition.y*0.7 + 0.55;
   vec3 stadium = vec3(texture(uSampler2, vTexCoord));
@@ -82,9 +95,19 @@ void main() {
   vec3 c = stadium;
   if (any(greaterThan(vec3(0.7, 0.7, 0.7), illinois))) {
     c = illinois;
-  }
-  
+  } 
+
+  if (isHand == 1) {
+    c = vec3(texture(uSampler3, vec2(s,t)));
+  } 
+
+  vec3 nvNormal = normalize(vNormal);
+  // vec3 nvNormal = normalize(vNormal) - c[1]/nPs[1] * cross(vNormal, nPt) + c[1] / nPt[1] * cross(vNormal, nPs);
+  float diffuse = max(dot(nvNormal, nvLight), 0.5);
+  vec3 r = normalize(reflect(-nvLight, nvNormal));
+  float vr = pow(max(dot(nvView, r), 0.0), 20.0);
   outColor = vec4(0.4*diffuse * c + 0.5*vr * vec3(1.0, 1.0, 1.0) + 0.1*vec3(1.0, 1.0, 1.0),1.0);
+  
 }
 `;
 
@@ -158,6 +181,29 @@ void main() {
     // set up texture and sampler
     //
 
+    texture3 = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture3);
+
+    var sampler3 = gl.createSampler();
+    gl.bindSampler(0, sampler3);
+
+    var size = 256;
+    const computedTexColor = new Uint8Array(4 * size * size);
+    // Create a checkerboard pattern
+    for (var i = 0; i < size; i++) {
+      for (var j = 0; j < size; j++) {
+        let isOrange = j % 10 > 5;
+        computedTexColor[4 * i * size + 4 * j] = isOrange ? 232 : 19;
+        computedTexColor[4 * i * size + 4 * j + 1] = isOrange ? 74 : 41;
+        computedTexColor[4 * i * size + 4 * j + 2] = isOrange ? 39 : 75;
+        computedTexColor[4 * i * size + 4 * j + 3] = 255;
+      }
+    }
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA,
+      gl.UNSIGNED_BYTE, computedTexColor);
+    gl.generateMipmap(gl.TEXTURE_2D);
+
+
     texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
@@ -174,7 +220,7 @@ void main() {
       gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
 
     var image = new Image();
-    image.src = "illinois512.png";
+    image.src = "illinois512-noborder.png";
 
     image.addEventListener("load", function () {
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -210,38 +256,52 @@ void main() {
       gl.generateMipmap(gl.TEXTURE_2D);
     });
 
-    // gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    // const positions = [
-    //   -1.0, -1.0, -1.0,
-    //   -1.0, -1.0, 1.0,
-    //   -1.0, 1.0, 1.0,
-    //   -1.0, 1.0, -1.0,
-    // ];
-    // gl.bufferData(gl.ARRAY_BUFFER,
-    //   new Float32Array(positions),
-    //   gl.STATIC_DRAW);
+    hand_vao = gl.createVertexArray();
+    gl.bindVertexArray(hand_vao);
 
+    // create a coordinate buffer of vertex positions and
+    // connect it to the vertex shader positions
 
-    // gl.enableVertexAttribArray(
-    //   vert_pos_attr);
-    // gl.vertexAttribPointer(
-    //   vert_pos_attr,
-    //   3,
-    //   gl.FLOAT, false, 0, 0);
-    // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
-    //   new Uint16Array([1177, 1178, 1179, 1180,]),
-    //   gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER,
+      new Float32Array(hand.positions),
+      gl.STATIC_DRAW);
 
-    // const faceColor =
-    //   [1.0, 1.0, 0.0, 1.0,
-    //     1.0, 1.0, 0.0, 1.0,
-    //     1.0, 1.0, 0.0, 1.0,
-    //     1.0, 1.0, 0.0, 1.0]
+    gl.enableVertexAttribArray(vert_pos_attr);
+    gl.vertexAttribPointer(vert_pos_attr, 3, gl.FLOAT, false, 0, 0);
 
-    // const colorBuffer = gl.createBuffer();
-    // gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    // gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(faceColor), gl.STATIC_DRAW);
+    // create a coordinate buffer of vertex positions and
+    // connect it to the vertex shader positions
+    // but normalize the normals first
+
+    var x, y, z, d, i;
+    for (i = 0; i < hand.normals.length; i += 3) {
+      x = hand.normals[i];
+      y = hand.normals[i + 1];
+      z = hand.normals[i + 2];
+
+      d = 1.0 / Math.sqrt(x * x + y * y + z * z);
+
+      hand.normals[i] *= d;
+      hand.normals[i + 1] *= d;
+      hand.normals[i + 2] *= d;
+
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER,
+      new Float32Array(hand.normals),
+      gl.STATIC_DRAW);
+
+    gl.enableVertexAttribArray(vert_normal_attr);
+    gl.vertexAttribPointer(vert_normal_attr, 3, gl.FLOAT, false, 0, 0);
+
+    // create an index buffer of triangle faces
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
+      new Uint16Array(hand.faces),
+      gl.STATIC_DRAW);
 
     //
     // set up transformation matrices
@@ -249,7 +309,6 @@ void main() {
 
     projection = glMatrix.mat4.create();
     glMatrix.mat4.perspective(projection, Math.PI / 6, 1.0, 0.1);
-
     requestAnimationFrame(draw);
   }
 
@@ -288,6 +347,8 @@ void main() {
     projection_uniform = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
     sampler_uniform = gl.getUniformLocation(shaderProgram, "uSampler");
     sampler2_uniform = gl.getUniformLocation(shaderProgram, "uSampler2");
+    sampler3_uniform = gl.getUniformLocation(shaderProgram, "uSampler3");
+    hand_uniform = gl.getUniformLocation(shaderProgram, "isHand");
   }
 
   //
@@ -300,16 +361,17 @@ void main() {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    modelview = glMatrix.mat4.create();
-    glMatrix.mat4.translate(modelview, modelview, [0.0, 0.2, -2.5]);
-    glMatrix.mat4.rotateY(modelview, modelview, time * 0.001);
-    glMatrix.mat4.rotateX(modelview, modelview, 0.15);
-
-    normalmatrix = glMatrix.mat3.create();
-    glMatrix.mat3.normalFromMat4(normalmatrix, modelview);
+    var bounce_factor = 0.0;
 
     gl.useProgram(shaderProgram);
+
+    gl.uniform1i(hand_uniform, 0);
+
+    modelview = glMatrix.mat4.create();
+    glMatrix.mat4.translate(modelview, modelview, [0.0, 0.2, -2.0]);
+    glMatrix.mat4.rotateY(modelview, modelview, time * 0.0007);
+    normalmatrix = glMatrix.mat3.create();
+    glMatrix.mat3.normalFromMat4(normalmatrix, modelview);
 
     gl.uniformMatrix4fv(modelview_uniform, false, modelview);
     gl.uniformMatrix3fv(normal_uniform, false, normalmatrix);
@@ -317,27 +379,36 @@ void main() {
 
     gl.uniform1i(sampler_uniform, 0);
     gl.uniform1i(sampler2_uniform, 1);
-
+    gl.uniform1i(sampler3_uniform, 2);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, texture2);
-
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, texture3);
     gl.bindVertexArray(teapot_vao);
     gl.drawElements(gl.TRIANGLES,
       teapot.faces.length,
       gl.UNSIGNED_SHORT,
       0);
+    gl.useProgram(shaderProgram);
+    gl.uniform1i(hand_uniform, 1);
+    modelview = glMatrix.mat4.create();
+    glMatrix.mat4.rotateZ(modelview, modelview, 1.5708);
+    glMatrix.mat4.translate(modelview, modelview, [-0.45, -0.4, -2.5]);
+    glMatrix.mat4.rotateY(modelview, modelview, -0.07);
+    normalmatrix = glMatrix.mat3.create();
+    glMatrix.mat3.normalFromMat4(normalmatrix, modelview);
 
-    // glMatrix.mat4.rotateY(modelview, modelview, -time * 0.003);
-    // glMatrix.mat4.translate(modelview, modelview, [0.5, 0.0, -0.3]);
-    // glMatrix.mat4.scale(modelview, modelview, [0.3, 0.3, 0.3]);
-    // // glMatrix.mat4.scale(modelview, [0.5, 0.5, 0.5]);
-    // gl.uniformMatrix4fv(modelview_uniform, false, modelview);
-    // gl.drawElements(gl.TRIANGLES,
-    //   teapot.faces.length,
-    //   gl.UNSIGNED_SHORT,
-    //   0);
+    gl.uniformMatrix4fv(modelview_uniform, false, modelview);
+    gl.uniformMatrix3fv(normal_uniform, false, normalmatrix);
+    gl.uniformMatrix4fv(projection_uniform, false, projection);
+    gl.uniformMatrix4fv(modelview_uniform, false, modelview);
+    gl.bindVertexArray(hand_vao);
+    gl.drawElements(gl.TRIANGLES,
+      hand.faces.length,
+      gl.UNSIGNED_SHORT,
+      0);
 
     requestAnimationFrame(draw);
   }
