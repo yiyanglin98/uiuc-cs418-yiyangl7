@@ -19,9 +19,6 @@
   var hand_vao;
   var vert_pos_attr;
   var vert_normal_attr;
-
-  var z_buffer;
-
   //
   // a default vertex shader implemented as a backquoted string variable
   //
@@ -73,13 +70,14 @@ uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
 uniform sampler2D uSampler3;
 uniform sampler2D uDepth;
+uniform int isNewModel;
+uniform int isBump;
 
 out vec4 outColor;    
 void main() {
-  // vec3 nvNormal = normalize(vNormal) - normalize(cross(vNormal, pt)) + normalize(cross(vNormal, ps));
   vec3 nvNormal = normalize(vNormal);
 
-  vec3 pt = normalize(cross(vec3(0.0,1.0,0.0), nvNormal));
+  vec3 pt = vec3(0.0,1.0,0.0);
   vec3 ps = normalize(cross(nvNormal, pt));
 
   vec3 nvLight = normalize(vLight);
@@ -97,11 +95,24 @@ void main() {
   vec3 c = stadium;
   if (any(greaterThan(vec3(0.7, 0.7, 0.7), illinois))) {
     c = illinois;
-    // if (isHand != 1 && isAlien != 1) {
-    //   nvNormal = nvNormal - c[1] * cross(nvNormal, pt) + c[2] * cross(nvNormal, ps);
-    // } 
   } 
-  
+  if (isBump == 1 && isHand != 1 && isAlien != 1) {
+      vec3 nvPositionU =  nvPosition * vec3(0.0, 1.5, 0.0);
+      
+      float su = atan(nvPositionU.z, nvPositionU.x) / (2.0 * -1.0 * 3.1415926);
+      float tu = nvPositionU.y * 2.0 - 0.43;
+      vec3 illinoisU = vec3(texture(uSampler, vec2(su,tu)));
+      vec3 dBds = illinoisU - illinois;
+
+      vec3 nvPositionR =  nvPosition * vec3(1.5, 0.0, 0.0);
+      
+      float sr = atan(nvPositionR.z, nvPositionR.x) / (2.0 * -1.0 * 3.1415926);
+      float tr = nvPositionR.y * 2.0 - 0.43;
+      vec3 illinoisR = vec3(texture(uSampler, vec2(sr,tr)));
+      vec3 dBdt = illinoisR - illinois;
+      
+      nvNormal = nvNormal - 2.0*dBds* cross(nvNormal, pt) + 2.0*dBdt*cross(nvNormal, ps);
+  }
   float shinness = 15.0;
   float specularK = 0.6;
   float diffuseK = 0.6;
@@ -113,6 +124,9 @@ void main() {
   float vr = max(dot(nvView, r), 0.0);
   float vrn = pow(vr, shinness);
   
+  
+  
+
   if (isHand == 1) {
     specularK = 0.2;
     diffuseK = 0.5;
@@ -125,13 +139,15 @@ void main() {
     c = vec3(texture(uDepth, vec2(nvPosition.x,nvPosition.y)));
   }
   outColor = vec4(diffuseK * diffuse * c + specularK * vrn * vec3(1.0, 1.0, 1.0) + ambientK * c,1.0);
+  if (isNewModel == 1) {
+    float nv = max(dot(nvNormal, nvView), 0.0);
+    float k = 2.0;
+    vec4 minnaert = 2.5*vec4(pow(diffuse, k) * pow(nv, k-1.0) * c, 1.0);
+    outColor = minnaert;
+  }
+  
 }
 `;
-
-  // red => B value
-  // green => db/ds
-  // blue => db/dt
-
   function initwebgl() {
 
     //
@@ -173,13 +189,19 @@ void main() {
       y = teapot.normals[i + 1];
       z = teapot.normals[i + 2];
 
-      // vec3 pt = normalize(cross(vec3(0.0,1.0,0.0), nvNormal));
+      // vec3 pt = vec3(0.0,1.0,0.0);
       // vec3 ps = normalize(cross(nvNormal, pt));
       d = 1.0 / Math.sqrt(x * x + y * y + z * z);
 
       teapot.normals[i] *= d;
       teapot.normals[i + 1] *= d;
       teapot.normals[i + 2] *= d;
+
+      // if (i % 6 == 0) {
+      //   // teapot.normals[i] /= 2
+      //   teapot.normals[i + 1] *= 1.5
+      // }
+
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -293,10 +315,6 @@ void main() {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 512, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, imageDepth);
       gl.generateMipmap(gl.TEXTURE_2D);
     });
-
-    z_buffer = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, z_buffer);
-
     hand_vao = gl.createVertexArray();
     gl.bindVertexArray(hand_vao);
 
@@ -343,6 +361,7 @@ void main() {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
       new Uint16Array(hand.faces),
       gl.STATIC_DRAW);
+
 
     //
     // set up transformation matrices
@@ -392,7 +411,8 @@ void main() {
     depth_uniform = gl.getUniformLocation(shaderProgram, "uDepth");
     hand_uniform = gl.getUniformLocation(shaderProgram, "isHand");
     alien_uniform = gl.getUniformLocation(shaderProgram, "isAlien");
-
+    model_uniform = gl.getUniformLocation(shaderProgram, "isNewModel");
+    bump_uniform = gl.getUniformLocation(shaderProgram, "isBump");
   }
 
   //
@@ -476,6 +496,17 @@ void main() {
       gl.UNSIGNED_SHORT,
       0);
 
+    if (document.getElementById("minnaert").checked) {
+      gl.uniform1i(model_uniform, 1);
+    } else {
+      gl.uniform1i(model_uniform, 0);
+    }
+
+    if (document.getElementById("on").checked) {
+      gl.uniform1i(bump_uniform, 1);
+    } else {
+      gl.uniform1i(bump_uniform, 0);
+    }
 
     requestAnimationFrame(draw);
   }
@@ -484,7 +515,16 @@ void main() {
 </script>
 
 <body onload="initwebgl()">
-
+  Lighting Model Selection<br>
+  <input type="radio" id="phong" name="model" checked>
+  <label for="html">Phong Lighting Model</label><br>
+  <input type="radio" id="minnaert" name="model">
+  <label for="html">Minnaert Lighting Model</label><br>
+  <br>Bump Mapping<br>
+  <input type="radio" id="on" name="bump" checked>
+  <label for="html">On</label><br>
+  <input type="radio" id="off" name="bump">
+  <label for="html">Off</label><br>
   <canvas id="myGLCanvas" width="500" height="500"></canvas>
 
 </body>
