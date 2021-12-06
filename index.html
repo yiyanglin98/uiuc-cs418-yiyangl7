@@ -106,9 +106,9 @@ void main() {
       float s2 = atan(nvPosition2.z, nvPosition2.x) / (2.0 * -1.0 * 3.1415926);
       float t2 = nvPosition2.y * 2.0 - 0.43;
       vec3 illinois2 = vec3(texture(uSampler, vec2(s2,t2)));
-
-      float dbds = illinois1.r - illinois.r;
-      float dbdt = illinois2.r - illinois.r;
+      float h =0.5;
+      float dbds = (illinois1 - illinois).r / h;
+      float dbdt = (illinois2 - illinois).r / h;
       nvNormal = normalize(nvNormal - dbds* cross(nvNormal, pt) + dbdt*cross(nvNormal, ps));
   }
   float shinness = 15.0;
